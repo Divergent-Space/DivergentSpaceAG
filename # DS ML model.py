@@ -1,51 +1,52 @@
-# Import libraries
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier  # Replace with chosen model
+import numpy as np
+import rasterio
+import matplotlib.pyplot as plt
 
-# Data loading functions (replace with your logic to load and process data)
-def load_remote_sensing_data():
-  # Load remote sensing data (e.g., NDVI, soil moisture)
-  # ...
-  return X
+def calculate_indices(nir, red, green, swir):
+    ndvi = (nir - red) / (nir + red)
+    ndmi = (nir - swir) / (nir + swir)
+    ndre = (nir - green) / (nir + green)
+    msavi = (2 * nir + 1 - np.sqrt((2 * nir + 1) ** 2 - 8 * (nir - red))) / 2
+    return ndvi, ndmi, ndre, msavi
 
-def load_agricultural_practices():
-  # Load data on recommended practices (e.g., fertilizer type, irrigation)
-  # ...
-  return y
+def generate_recommendations(ndvi, ndmi, ndre, msavi):
+    recommendations = {}
+    if ndvi < 0.2:
+        recommendations['NDVI'] = "Low vegetation cover, consider soil improvement."
+    elif ndvi < 0.5:
+        recommendations['NDVI'] = "Moderate vegetation cover, consider irrigation."
+    else:
+        recommendations['NDVI'] = "Healthy vegetation, maintain current practices."
 
-# Load data
-X = load_remote_sensing_data()  # Features (remote sensing data)
-y = load_agricultural_practices()  # Target variable (recommended practices)
+    if ndmi < 0:
+        recommendations['NDMI'] = "Dry conditions, consider irrigation."
+    else:
+        recommendations['NDMI'] = "Sufficient moisture, maintain current practices."
 
-# Split data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    if ndre < 0.2:
+        recommendations['NDRE'] = "Low crop health, consider pest control."
+    else:
+        recommendations['NDRE'] = "Healthy crops, maintain current practices."
 
-# Feature scaling (optional, consider based on data distribution)
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
+    if msavi < 0.2:
+        recommendations['MSAVI'] = "Low vegetation density, consider fertilization."
+    else:
+        recommendations['MSAVI'] = "Good vegetation density, maintain current practices."
 
-# Create the model (Replace RandomForestClassifier with your chosen model)
-model = RandomForestClassifier()
+    return recommendations
 
-# Train the model
-model.fit(X_train, y_train)
+def analyze_satellite_image(image_path):
+    with rasterio.open(image_path) as src:
+        band_red = src.read(1)
+        band_green = src.read(2)
+        band_nir = src.read(3)
+        band_swir = src.read(4)
 
-# Make predictions on the testing set
-y_predicted = model.predict(X_test)
+    ndvi, ndmi, ndre, msavi = calculate_indices(band_nir, band_red, band_green, band_swir)
+    recommendations = generate_recommendations(np.nanmean(ndvi), np.nanmean(ndmi), np.nanmean(ndre), np.nanmean(msavi))
 
-# Evaluate the model performance (optional)
-# Use appropriate metrics based on your classification problem
+    return recommendations
 
-# Function to predict practice based on new remote sensing data
-def predict_practice(new_data):
-  # Preprocess new data (if necessary)
-  new_data_scaled = scaler.transform(new_data)  # Apply scaling if used
-  prediction = model.predict(new_data_scaled)[0]  # Predict practice for single data point
-  return prediction
-
-# Example usage
-new_data = [...]  # Replace with new remote sensing data for prediction
-recommended_practice = predict_practice(new_data)
-print("Recommended practice:", recommended_practice)
+image_path = 'path_to_your_satellite_image.tif'
+recommendations = analyze_satellite_image(image_path)
+print(recommendations)
